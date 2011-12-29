@@ -50,17 +50,19 @@ usb_dev_handle *handle = NULL;
 #define CONVERT_FROM(a)
 #endif
 
-void set_rgb(char* color)
+int set_rgb(char* color)
 {
 	uint16_t buffer[3] = {0, 0, 0};
+	int cnt;
 	sscanf(color, "%hi:%hi:%hi", &(buffer[0]), &(buffer[1]), &(buffer[2]));
 	CONVERT_TO(buffer[0]);
 	CONVERT_TO(buffer[1]);
 	CONVERT_TO(buffer[2]);
-	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT, CUSTOM_RQ_SET_RGB, 0, 0, (char*)buffer, 6, 5000);
+	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT, CUSTOM_RQ_SET_RGB, 0, 0, (char*)buffer, 6, 5000);
+	return 0;
 }
 
-void fade_rgb(char* param)
+int fade_rgb(char* param)
 {
 	uint16_t buffer[3] = {0, 0, 0}, fade_counter=256;
 	int cnt;
@@ -70,71 +72,73 @@ void fade_rgb(char* param)
 	CONVERT_TO(buffer[2]);
 	CONVERT_TO(fade_counter);
 	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT, CUSTOM_RQ_FADE_RGB, fade_counter, 0, (char*)buffer, 6, 5000);
+	return 0;
 }
 
-void get_rgb(char* param)
+int get_rgb(char* param)
 {
 	uint16_t buffer[3];
 	int cnt;
 	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_GET_RGB, 0, 0, (char*)buffer, 6, 5000);
-	if(cnt!=6)
+	if (cnt!=6)
 	{
 		fprintf(stderr, "ERROR: received %d bytes from device while expecting %d bytes\n", cnt, 6);
-		exit(1);
+		return -1;
 	}
 	CONVERT_FROM(buffer[0]);
 	CONVERT_FROM(buffer[1]);
 	CONVERT_FROM(buffer[2]);
 
 	printf("red: %5hu\ngreen: %5hu\nblue: %5u\n", buffer[0], buffer[1], buffer[2]);
+	return 0;
 }
 
-void read_mem(char* param)
+int read_mem(char* param)
 {
 	int length=0;
 	uint16_t addr;
 	uint8_t *buffer;
 	int cnt;
 	FILE* f=NULL;
-	if(fname)
+	if (fname)
 	{
 		f = fopen(fname, "wb");
-		if(!f)
+		if (!f)
 		{
 			fprintf(stderr, "ERROR: could not open %s for writing\n", fname);
-			exit(1);
+			return -1;
 		}
 	}
 	sscanf(param, "%hi:%i", &addr, &length);
-	if(length<=0)
+	if (length<=0)
 	{
-		return;
+		return length;
 	}
 	buffer = malloc(length);
-	if(!buffer)
+	if (!buffer)
 	{
-		if(f)
+		if (f)
 			fclose(f);
 		fprintf(stderr, "ERROR: out of memory\n");
-		exit(1);
+		return -1;
 	}
 	CONVERT_TO(addr);
 	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_MEM, (int)((unsigned)addr), 0, (char*)buffer, length, 5000);
-	if(cnt!=length)
+	if (cnt!=length)
 	{
-		if(f)
+		if (f)
 			fclose(f);
 		fprintf(stderr, "ERROR: received %d bytes from device while expecting %d bytes\n", cnt, length);
-		exit(1);
+		return -1;
 	}
-	if(f)
+	if (f)
 	{
 		cnt = fwrite(buffer, 1, length, f);
 		fclose(f);
-		if(cnt!=length)
+		if (cnt!=length)
 		{
 			fprintf(stderr, "ERROR: could write only %d bytes out of %d bytes\n", cnt, length);
-			exit(1);
+			return -1;
 		}
 
 	}
@@ -142,9 +146,10 @@ void read_mem(char* param)
 	{
 		hexdump_block(stdout, buffer, (void*)((size_t)addr), length, 8);
 	}
+	return 0;
 }
 
-void write_mem(char* param)
+int write_mem(char* param)
 {
 	int length;
 	uint16_t addr;
@@ -152,57 +157,57 @@ void write_mem(char* param)
 	int cnt=0;
 	FILE* f=NULL;
 
-	if(fname)
+	if (fname)
 	{
 		f = fopen(fname, "rb");
-		if(!f)
+		if (!f)
 		{
 			fprintf(stderr, "ERROR: could not open %s for writing\n", fname);
-			exit(1);
+			return -1;
 		}
 	}
 	sscanf(param, "%hi:%i:%n", &addr, &length, &cnt);
 	data += cnt;
-	if(length<=0)
+	if (length<=0)
 	{
-		return;
+		return length;
 	}
 	buffer = malloc(length);
-	if(!buffer)
+	if (!buffer)
 	{
-		if(f)
+		if (f)
 			fclose(f);
 		fprintf(stderr, "ERROR: out of memory\n");
-		exit(1);
+		return -1;
 	}
 	memset(buffer, (uint8_t)pad, length);
-	if(!data && !f && length==0)
+	if (!data && !f && length==0)
 	{
 		fprintf(stderr, "ERROR: no data to write\n");
-		exit(1);
+		return -1;
 	}
-	if(f)
+	if (f)
 	{
 		cnt = fread(buffer, 1, length, f);
 		fclose(f);
-		if(cnt!=length && pad==-1)
+		if (cnt!=length && pad==-1)
 		{
 			fprintf(stderr, "Warning: could ony read %d bytes from file; will only write these bytes", cnt);
 		}
 	}
-	else if(data)
+	else if (data)
 	{
 		char xbuffer[3]= {0, 0, 0};
 		uint8_t fill=0;
 		unsigned idx=0;
-		while(*data && idx<length)
+		while (*data && idx<length)
 		{
-			while(*data && !isxdigit(*data))
+			while (*data && !isxdigit(*data))
 			{
 				++data;
 			}
 			xbuffer[fill++] = *data;
-			if(fill==2)
+			if (fill==2)
 			{
 				uint8_t t;
 				t = strtoul(xbuffer, NULL, 16);
@@ -214,60 +219,60 @@ void write_mem(char* param)
 	}
 	CONVERT_TO(addr);
 	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_OUT, CUSTOM_RQ_WRITE_MEM, (int)addr, 0, (char*)buffer, length, 5000);
-	if(cnt!=length)
+	if (cnt!=length)
 	{
 		fprintf(stderr, "ERROR: device accepted ony %d bytes out of %d\n", cnt, length);
-		exit(1);
+		return -1;
 	}
-
+	return 0;
 }
 
-void read_flash(char* param)
+int read_flash(char* param)
 {
 	int length=0;
 	uint16_t addr;
 	uint8_t *buffer;
 	int cnt;
 	FILE* f=NULL;
-	if(fname)
+	if (fname)
 	{
 		f = fopen(fname, "wb");
-		if(!f)
+		if (!f)
 		{
 			fprintf(stderr, "ERROR: could not open %s for writing\n", fname);
-			exit(1);
+			return -1;
 		}
 	}
 	sscanf(param, "%hi:%i", &addr, &length);
-	if(length<=0)
+	if (length<=0)
 	{
-		return;
+		return length;
 	}
 	buffer = malloc(length);
-	if(!buffer)
+	if (!buffer)
 	{
-		if(f)
+		if (f)
 			fclose(f);
 		fprintf(stderr, "ERROR: out of memory\n");
-		exit(1);
+		return -1;
 	}
 	CONVERT_TO(addr);
 	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_FLASH, (int)addr, 0, (char*)buffer, length, 5000);
-	if(cnt!=length)
+	if (cnt!=length)
 	{
-		if(f)
+		if (f)
 			fclose(f);
 		fprintf(stderr, "ERROR: received %d bytes from device while expecting %d bytes\n", cnt, length);
-		exit(1);
+		return -1;
 	}
-	if(f)
+	if (f)
 	{
 		cnt = fwrite(buffer, 1, length, f);
 		fclose(f);
-		if(cnt!=length)
+		if (cnt!=length)
 		{
 			fprintf(stderr, "ERROR: could write only %d bytes out of %d bytes\n", cnt, length);
-			exit(1);
+			return -1;
 		}
 
 	}
@@ -275,57 +280,65 @@ void read_flash(char* param)
 	{
 		hexdump_block(stdout, buffer, (void*)((size_t)addr), length, 8);
 	}
+	return 0;
 }
 
-void soft_reset(char* param)
+int soft_reset(char* param)
 {
 	unsigned delay=0;
-	if(param)
+	int cnt;
+	if (param)
 	{
 		sscanf(param, "%i", &delay);
 	}
 	delay &= 0xf;
-	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_RESET, (int)delay, 0, NULL, 0, 5000);
+	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_RESET, (int)delay, 0, NULL, 0, 5000);
+	return 0;
 }
 
-void read_button(char* param)
+int read_button(char* param)
 {
 	uint8_t v;
-	usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_BUTTON, 0, 0, (char*)&v, 1, 5000);
+	int cnt;
+	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_BUTTON, 0, 0, (char*)&v, 1, 5000);
 	printf("button is %s\n",v?"on":"off");
+	return 0;
 }
 
-void wait_for_button(char* param)
+int wait_for_button(char* param)
 {
 	volatile uint8_t v=0, x=1;
-	if(param)
+	int cnt;
+	if (param)
 	{
-		if(!(strcmp(param,"off") && strcmp(param,"0")))
+		if (!(strcmp(param,"off") && strcmp(param,"0")))
 		{
 			x = 0;
 		}
 	}
 	do
 	{
-		usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_BUTTON, 0, 0, (char*)&v, 1, 5000);
-	} while(x!=v);
+		cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_BUTTON, 0, 0, (char*)&v, 1, 5000);
+	} while (x!=v);
 	printf("button is %s\n",v?"on":"off");
+	return 0;
 }
 
-void read_temperature(char* param)
+int read_temperature(char* param)
 {
 	uint16_t v;
 	int cnt;
 	cnt = usb_control_msg(handle, USB_TYPE_VENDOR | USB_RECIP_DEVICE | USB_ENDPOINT_IN, CUSTOM_RQ_READ_TMPSENS, 0, 0, (char*)&v, 2, 5000);
 	CONVERT_FROM(v);
 	printf("temperature raw value: %hd 0x%hx\n", v, v);
+	return 0;
 }
 
-void input_file(char* param)
+int input_file(char* param)
 {
 	FILE* FI = NULL;
 	char line[100];
-	if (strcmp(param, "-") == 0)
+	if (param == NULL || strcmp(param, "-") == 0)
 		FI = stdin;
 	else
 	{
@@ -333,25 +346,34 @@ void input_file(char* param)
 		if (FI == NULL)
 		{
 			fprintf(stderr, "error %s opening '%s'\n", strerror(errno), param);
-			return;
+			return -errno;
 		}
 	}
 	while (fgets(line, sizeof(line), FI) != NULL)
 	{
 		if (strlen(line) > 2 && line[1] == ' ')
-		switch (line[0])
 		{
-			case 's': set_rgb(line+2); break;
-			case 'g': get_rgb(line+2); break;
-			case 'r': read_mem(line+2); break;
-			case 'z': read_flash(line+2); break;
-			case 'w': write_mem(line+2); break;
-			case 'q': soft_reset(line+2); break;
-			case 'b': read_button(line+2); break;
-			case 'k': wait_for_button(line+2); break;
-			case 't': read_temperature(line+2); break;
-			case 'j': fade_rgb(line+2); break;
-			default: fprintf(stderr, "error wrong protocol '%s'\n", line); fflush(stderr); break;
+			char* ptr = line;
+			while (*ptr)
+			{
+				if (*ptr == ' ' || *ptr == '\n')
+					*ptr = ':';
+				ptr++;
+			}
+			switch (line[0])
+			{
+				case 's': set_rgb(line+2); break;
+				case 'g': get_rgb(line+2); break;
+				case 'r': read_mem(line+2); break;
+				case 'z': read_flash(line+2); break;
+				case 'w': write_mem(line+2); break;
+				case 'q': soft_reset(line+2); break;
+				case 'b': read_button(line+2); break;
+				case 'k': wait_for_button(line+2); break;
+				case 't': read_temperature(line+2); break;
+				case 'j': fade_rgb(line+2); break;
+				default: fprintf(stderr, "error wrong protocol '%s'\n", line); fflush(stderr); break;
+			}
 		}
 		else
 		{
@@ -360,6 +382,7 @@ void input_file(char* param)
 		}
 	}
 	fclose(FI);
+	return 0;
 }
 
 static struct option long_options[] = {
@@ -427,7 +450,7 @@ int main(int argc, char **argv)
 	char product[] = {USB_CFG_DEVICE_NAME, 0};
 	int vid, pid;
 	int c, option_index;
-	void(*action_fn)(char*) = NULL;
+	int(*action_fn)(char*) = NULL;
 	char* main_arg = NULL;
 	unsigned exec_loops=(unsigned)-1;
 	usb_init();
@@ -440,28 +463,28 @@ int main(int argc, char **argv)
 		vid = rawVid[1] * 256 + rawVid[0];
 		pid = rawPid[1] * 256 + rawPid[0];
 		/* The following function is in opendevice.c: */
-		if(usbOpenDevice(&handle, vid, vendor, pid, product, NULL, NULL, NULL) != 0)
+		if (usbOpenDevice(&handle, vid, vendor, pid, product, NULL, NULL, NULL) != 0)
 		{
 				fprintf(stderr, "Could not find USB device \"%s\" with vid=0x%x pid=0x%x\n", product, vid, pid);
 				exit(1);
 		}
 
-		for(;;)
+		for (;;)
 		{
 			c = getopt_long(argc, argv, "s:gr:z:w:x:a:f:p::q::bk::tl:j:i:", long_options, &option_index);
-			if(c == -1)
+			if (c == -1)
 			{
 				break;
 			}
 
-			if(action_fn && strchr("sgrzwxaqbktji", c))
+			if (action_fn && strchr("sgrzwxaqbktji", c))
 			{
 				/* action given while already having an action */
 				usage(argv[0]);
 				exit(1);
 			}
 
-			if(strchr("sgrzwxaqktji", c))
+			if (strchr("sgrzwxaqktji", c))
 			{
 				main_arg = optarg;
 			}
@@ -480,16 +503,16 @@ int main(int argc, char **argv)
 			case 'j': action_fn = fade_rgb; break;
 			case 'i': action_fn = input_file; break;
 			case 'f': fname = optarg; break;
-			case 'p': pad = 0; if(optarg) pad=strtoul(optarg, NULL, 0); break;
-			 	case 'l': exec_loops = strtoul(optarg, NULL, 0); break;
-				case 'x':
+			case 'p': pad = 0; if (optarg) pad=strtoul(optarg, NULL, 0); break;
+			case 'l': exec_loops = strtoul(optarg, NULL, 0); break;
+			case 'x':
 			case 'a':
 			default:
 				break;
 			}
 		}
 
-		if(!action_fn)
+		if (!action_fn)
 		{
 			usage(argv[0]);
 			fprintf(stderr, "Error: no action specified\n");
@@ -497,15 +520,17 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			if(exec_loops==(unsigned)-1)
-			{
+			if (exec_loops==(unsigned)-1)
 				exec_loops = 1;
-			}
-			while(exec_loops--)
+			while (exec_loops--)
 			{
-				action_fn(main_arg);
+				if (action_fn(main_arg) != 0)
+				{
+					exec_loops = 0;
+					fprintf(stderr, "error in action_fn\n");
+				}
 			}
-				usb_close(handle);
+			usb_close(handle);
 			return 0;
 		}
 
