@@ -19,6 +19,7 @@ respectively.
 #define ENDIAN_SAFE
 
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
@@ -274,6 +275,43 @@ void read_temperature(char* param){
 	printf("temperature raw value: %hd 0x%hx\n", v, v);
 }
 
+void input_file(char* param){
+  FILE* FI = NULL;
+  char line[100];
+  if (strcmp(param, "-") == 0)
+    FI = stdin;
+  else
+    FI = fopen(param, "r");
+  if (FI == NULL)
+  {
+    fprintf(stderr, "error %s opening '%s'\n", strerror(errno), param);
+    return;
+  }
+  while (fgets(line, sizeof(line), FI) != NULL)
+  {
+    if (strlen(line) > 2 && line[1] == ' ')
+		switch (line[0])
+		{
+    	case 's': set_rgb(line+2); break;
+    	case 'g': get_rgb(line+2); break;
+    	case 'r': read_mem(line+2); break;
+    	case 'z': read_flash(line+2); break;
+    	case 'w': write_mem(line+2); break;
+    	case 'q': soft_reset(line+2); break;
+    	case 'b': read_button(line+2); break;
+    	case 'k': wait_for_button(line+2); break;
+    	case 't': read_temperature(line+2); break;
+    	case 'j': fade_rgb(line+2); break;
+		default: fprintf(stderr, "error wrong protocol '%s'\n", line); fflush(stderr); break;
+		}
+	else
+	{
+		fprintf(stderr, "error wrong protocol '%s'\n", line);
+		fflush(stderr);
+	}
+  }
+  fclose(FI);
+}
 
 static struct option long_options[] =
              {
@@ -296,6 +334,7 @@ static struct option long_options[] =
                {"read-temperature",      no_argument, 0, 't'},
                {"file",            required_argument, 0, 'f'},
                {"loop",            required_argument, 0, 'l'},
+               {"input-file",      required_argument, 0, 'i'},
                {0, 0, 0, 0}
              };
 
@@ -358,19 +397,19 @@ int main(int argc, char **argv)
     }
 
     for(;;){
-    	c = getopt_long(argc, argv, "s:gr:z:w:x:a:f:p::q::bk::tl:j:",
+    	c = getopt_long(argc, argv, "s:gr:z:w:x:a:f:p::q::bk::tl:j:i:",
                 long_options, &option_index);
     	if(c == -1){
     		break;
     	}
 
-    	if(action_fn && strchr("sgrzwxaqbktj", c)){
+    	if(action_fn && strchr("sgrzwxaqbktji", c)){
     		/* action given while already having an action */
     		usage(argv[0]);
     		exit(1);
     	}
 
-    	if(strchr("sgrzwxaqktj", c)){
+    	if(strchr("sgrzwxaqktji", c)){
     		main_arg = optarg;
     	}
 
@@ -385,6 +424,7 @@ int main(int argc, char **argv)
     	case 'k': action_fn = wait_for_button; break;
     	case 't': action_fn = read_temperature; break;
     	case 'j': action_fn = fade_rgb; break;
+    	case 'i': action_fn = input_file; break;
     	case 'f': fname = optarg; break;
     	case 'p': pad = 0; if(optarg) pad=strtoul(optarg, NULL, 0); break;
        	case 'l': exec_loops = strtoul(optarg, NULL, 0); break;
