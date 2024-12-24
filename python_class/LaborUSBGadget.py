@@ -5,21 +5,18 @@ __all=['LaborUSBGadget']
 
 class LaborUSBGadget(object):
   """
-  die ist die oberklasse fuer alle Labor USB devices
-  sie definiert ein paar default Werte
-  unter anderem natuerlich die Vendorid und product ids
-  ferner biete sie eine abstraction zu den usb-geraete, so, dass
-  nur noch die funktionen zusammen gebaut werden muessen und man
-  sich nicht mehr um die usb-details kuemmern muss
+  die ist die oberklasse fuer alle Labor USB devices sie definiert ein paar
+  default Werte unter anderem natuerlich die Vendorid und product ids ferner
+  biete sie eine abstraction zu den usb-geraete, so, dass nur noch die
+  funktionen zusammen gebaut werden muessen und man sich nicht mehr um die
+  usb-details kuemmern muss
   """
-  # 0x16c0
-  LABOR_VENDOR_ID=5824
-  # 0x05df
-  LABOR_BADGE_ID=1503
+  LABOR_VENDOR_ID=0x16c0
+  LABOR_BADGE_ID=0x05df
 
   def __init__(self,ProductID):
     self.dev = usb.core.find(idVendor=self.LABOR_VENDOR_ID, idProduct=ProductID)
-    
+
   def sendCTLMsg(self,request,data,value=0,index=0,timeout=100):
     """
     gibt einen int zurueck der angibt wieviele daten wirklich geschrieben wurden

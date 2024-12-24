@@ -2,6 +2,7 @@
 from math import floor
 from os import system
 from time import sleep
+from LaborBadge import LaborBadge
 
 def hsv2rgb(h, s, v):
 	' calculate rgb from hsv values '
@@ -26,11 +27,16 @@ def hsv2rgb(h, s, v):
 	return r, g, b
 
 def main():
-	while True:
+	while False:
 		for key in range(0, 360, 5):
 			print('../commandline/badge-tool -s {}:{}:{}'.format(*hsv2rgb(key, 1, 1)))
 			system('../commandline/badge-tool -s {}:{}:{}'.format(*hsv2rgb(key, 1, 1)))
 			sleep(.1)
+	f=LaborBadge()
+	while True:
+		for key in range(0, 360, 3):
+			f.setColor(*hsv2rgb(key, 1, 1))
+			sleep(.03)
 
 if __name__ == '__main__':
 	from sys import argv
