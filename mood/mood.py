@@ -32,11 +32,31 @@ def main():
 			print('../commandline/badge-tool -s {}:{}:{}'.format(*hsv2rgb(key, 1, 1)))
 			system('../commandline/badge-tool -s {}:{}:{}'.format(*hsv2rgb(key, 1, 1)))
 			sleep(.1)
-	f=LaborBadge()
-	while True:
-		for key in range(0, 360, 3):
-			f.setColor(*hsv2rgb(key, 1, 1))
-			sleep(.03)
+	color = 300
+	count = 200
+	with LaborBadge() as f:
+		while False:
+			for key in range(0, 360, 3):
+				f.setColor(*hsv2rgb(key, 1, 1))
+				sleep(.03)
+		print("temperature=", f.getTemprature())
+		print("color=", f.getColor())
+		print("getButton", f.getButton())
+		f.setColor(0, 0, 0)
+		o = 0
+		while True:
+			for b in range(1, 8):
+				if f.getButton(): break
+				x = [a+b for a,b in zip(
+					[-color * (o >> i & 1) for i in range(3)],
+					[color * (b >> i & 1) for i in range(3)],
+					)]
+				f.fadeDelta(count, *x)
+				sleep(count / 125)
+				o = b
+			f.setColor(count*color, count*color, count*color)
+			sleep(count / 125)
+
 
 if __name__ == '__main__':
 	from sys import argv
