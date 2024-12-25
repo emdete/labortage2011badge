@@ -28,6 +28,15 @@ class LaborBadge(LaborUSBGadget):
 		self.starttempHost=-40
 		LaborUSBGadget.__init__(self, LaborUSBGadget.LABOR_BADGE_ID)
 
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		return False
+
+	def getButton(self):
+		return self.getCTLMsg(self.commands['CUSTOM_RQ_READ_BUTTON'], 2)[0]
+
 	def getTemprature(self):
 		"""
 		Das badge kann die raumtemperatur auswerten - lets have a look
@@ -59,8 +68,8 @@ class LaborBadge(LaborUSBGadget):
 
 		Bitte bitte selber justieren! das ding ist wirklich ungenau
 		"""
-		tmptemp=self.getCTLMsg(self.commands['CUSTOM_RQ_READ_TMPSENS'], 2)
-		value=(tmptemp[1]<<8)+tmptemp[0]
+		tmptemp = self.getCTLMsg(self.commands['CUSTOM_RQ_READ_TMPSENS'], 2)
+		value = (tmptemp[1]<<8)+tmptemp[0]
 		#a=1
 		k=1.12119658119658119657
 		return float(value-float(self.starttempUSB)+self.starttempHost)/k
@@ -104,17 +113,11 @@ class LaborBadge(LaborUSBGadget):
 		delta_red &= 0xffff
 		delta_blue &= 0xffff
 		delta_green &= 0xffff
-		print("vals",
-			count,
-			delta_red % 256, delta_red // 256,
-			delta_green % 256, delta_green // 256,
-			delta_blue % 256, delta_blue // 256,
-			)
 		return self.sendCTLMsg(self.commands['CUSTOM_RQ_FADE_RGB'], (
 			delta_red % 256, delta_red // 256,
 			delta_green % 256, delta_green // 256,
 			delta_blue % 256, delta_blue // 256,
-			), count)
+			), min(count, 255))
 
 
 if __name__ == "__main__":
@@ -124,10 +127,12 @@ if __name__ == "__main__":
 	print("temperature=", f.getTemprature())
 	print("color=", f.getColor())
 	print("setColor", f.setColor())
-	for _ in range(4):
-		print("fadeDelta", f.fadeDelta(255, -255, -255, -255))
-		sleep(2)
-		print("fadeDelta", f.fadeDelta())
-		sleep(2)
+	while True:
+		for _ in range(4):
+			print("fadeDelta", f.fadeDelta(254, -256, -256, -256))
+			exit(0)
+			sleep(2)
+			print("fadeDelta", f.fadeDelta())
+			sleep(2)
 	print("fadeDelta", f.fadeDelta(255, -255, -255, -255))
 
